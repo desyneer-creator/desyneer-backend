@@ -1,17 +1,73 @@
+// Dosya yolu: server.js
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+// connectDB fonksiyonunu import ediyoruz
+const connectDB = require('./config/database'); 
+const authRoutes = require('./routes/auth');
+const projectRoutes = require('./routes/projects'); 
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+// Middleware'ler (Sıra Önemlidir)
+app.use(express.json()); // 1. POST verilerini JSON olarak alabilmek için gerekli
+app.use(express.urlencoded({ extended: true }));
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+}));
 
+
+// ROTALARIN TANIMLANMASI (Tüm istekler buraya yönlendirilir)
+app.use('/api/auth', authRoutes);
+app.use('/api/projects', projectRoutes);
+
+// Sağlık kontrolü rotası
 app.get('/api/health', (req, res) => {
   res.status(200).json({ message: 'Server is running' });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+// 404 Hata işleyici (Tüm Rotalar DENENDİKTEN SONRA en sonda çalışır)
+app.use((req, res, next) => {
+  // next'i çağırarak diğer hata işleyicilere geçmek için next(error) kullanmak daha iyidir
+  const error = new Error('Route not found');
+  error.status = 404;
+  next(error);
 });
+
+// Genel hata işleyici (Tüm hataları yakalar: 404, 500 vb.)
+app.use((err, req, res, next) => {
+  // Eğer hata bir status koduna sahip değilse, varsayılan olarak 500 kullan
+  const statusCode = err.status || 500;
+  
+  // Hata detaylarını sadece geliştirme ortamında göster
+  const errorDetails = process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error';
+
+  console.error(err);
+  res.status(statusCode).json({ 
+    message: err.message, // Hata mesajını gönder
+    status: statusCode 
+  });
+});
+
+// KRİTİK DÜZELTME: Sunucuyu başlatma ve MongoDB bağlantısını yönetme fonksiyonu
+const startServer = async () => {
+    const PORT = process.env.PORT || 5000;
+    try {
+        // MongoDB bağlantısını BEKLİYORUZ 
+        await connectDB(); 
+        
+        // Bağlantı başarılıysa sunucuyu başlatıyoruz
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error.message);
+        process.exit(1);
+    }
+};
+
+// Sunucuyu başlat
+startServer();
