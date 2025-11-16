@@ -7,6 +7,7 @@ const cors = require('cors');
 const connectDB = require('./config/database'); 
 const authRoutes = require('./routes/auth');
 const projectRoutes = require('./routes/projects'); 
+const proposalRoutes = require('./routes/proposals'); // Yeni teklif rotasını import ediyoruz
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use(cors({
 // ROTALARIN TANIMLANMASI (Tüm istekler buraya yönlendirilir)
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/proposals', proposalRoutes); // KRİTİK: Yeni teklif rotası eklendi
 
 // Sağlık kontrolü rotası
 app.get('/api/health', (req, res) => {
@@ -31,7 +33,6 @@ app.get('/api/health', (req, res) => {
 
 // 404 Hata işleyici (Tüm Rotalar DENENDİKTEN SONRA en sonda çalışır)
 app.use((req, res, next) => {
-  // next'i çağırarak diğer hata işleyicilere geçmek için next(error) kullanmak daha iyidir
   const error = new Error('Route not found');
   error.status = 404;
   next(error);
@@ -39,10 +40,8 @@ app.use((req, res, next) => {
 
 // Genel hata işleyici (Tüm hataları yakalar: 404, 500 vb.)
 app.use((err, req, res, next) => {
-  // Eğer hata bir status koduna sahip değilse, varsayılan olarak 500 kullan
   const statusCode = err.status || 500;
   
-  // Hata detaylarını sadece geliştirme ortamında göster
   const errorDetails = process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error';
 
   console.error(err);

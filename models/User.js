@@ -31,7 +31,11 @@ const UserSchema = new mongoose.Schema(
       enum: ['client', 'freelancer', 'admin'],
       default: 'client',
     },
-    // NOT: Zorunlu olan 'name' alanı buradan KALDIRILDI.
+    // KRİTİK DÜZELTME: Freelancer'ların yeteneklerini tutmak için 'skills' alanı eklendi
+    skills: {
+        type: [String], // String dizisi (Array of Strings)
+        default: [],    // Varsayılan olarak boş bir dizi
+    }
   },
   { timestamps: true }
 );
