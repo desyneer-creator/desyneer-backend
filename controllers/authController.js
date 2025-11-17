@@ -1,11 +1,9 @@
-const User = require('../models/User'); // User modelini dahil et
+const User = require('../models/User'); // User modelini dahil et [cite: User.js]
 
 // JWT token'ı client'a gönderme
 const sendTokenResponse = (user, statusCode, res) => {
-  // Token'ı User modelindeki metod ile oluşturuyoruz
-  const token = user.getSignedJwtToken();
+  const token = user.getSignedJwtToken(); // [cite: User.js]
 
-  // JWT'yi çerez olarak göndermek yerine şimdilik sadece JSON olarak gönderiyoruz.
   res.status(statusCode).json({
     success: true,
     token,
@@ -14,6 +12,7 @@ const sendTokenResponse = (user, statusCode, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        skills: user.skills // 'skills' alanını da döndür [cite: User.js]
     }
   });
 };
@@ -26,29 +25,21 @@ exports.register = async (req, res, next) => {
   const { username, email, password, role } = req.body;
 
   try {
-    // 1. Kullanıcı oluştur (Mongoose pre-save hook şifreyi otomatik hash'ler)
     const user = await User.create({
       username,
       email,
       password,
       role: role || 'client' 
     });
-
-    // 2. Başarı durumunda token gönder
     sendTokenResponse(user, 201, res);
-
   } catch (err) {
     console.error('Kayıt hatası:', err.message);
-    
-    // 11000 kodu, benzersiz alan (unique index) hatasıdır (e-posta veya kullanıcı adı zaten kayıtlı)
     if (err.code === 11000) {
       return res.status(400).json({ 
         success: false, 
         message: 'This email or username is already registered.' 
       });
     }
-    
-    // Diğer doğrulama hataları (Mongoose validation errors)
     res.status(400).json({ 
         success: false, 
         message: err.message 
@@ -63,32 +54,65 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   const { email, password } = req.body;
 
-  // 1. E-posta ve şifrenin gönderildiğini kontrol et
   if (!email || !password) {
     return res.status(400).json({ success: false, message: 'Please provide an email and password.' });
   }
 
   try {
-    // 2. Kullanıcıyı e-posta ile bul, şifreyi de çekmek için .select('+password') kullan
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select('+password'); // [cite: User.js]
 
-    // 3. Kullanıcı yoksa hata döndür
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
-    // 4. Şifreyi karşılaştır (User modelindeki metodu kullan)
-    const isMatch = await user.matchPassword(password);
+    const isMatch = await user.matchPassword(password); // [cite: User.js]
 
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
-
-    // 5. Giriş başarılıysa token gönder
     sendTokenResponse(user, 200, res);
     
   } catch (err) {
     console.error('Login hatası:', err.message);
     res.status(500).json({ success: false, message: 'Internal server error during login.' });
+  }
+};
+
+
+// @desc    Update user profile (skills, username, etc.)
+// @route   PUT /api/auth/updateprofile
+// @access  Private (Giriş gerektirir)
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id); // req.user [cite: auth.js]
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı.' });
+    }
+
+    const { username, email, skills } = req.body;
+
+    if (username) user.username = username;
+    if (email) user.email = email;
+    if (skills && Array.isArray(skills)) {
+      user.skills = skills; // 'skills' dizisini güncelle [cite: User.js]
+    }
+
+    const updatedUser = await user.save();
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: updatedUser._id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        skills: updatedUser.skills
+      }
+    });
+
+  } catch (err) {
+    console.error('Profil güncelleme hatası:', err.message);
+    res.status(500).json({ success: false, message: 'Profil güncellenirken sunucu hatası oluştu.' });
   }
 };
